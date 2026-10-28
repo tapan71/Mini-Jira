@@ -1,5 +1,7 @@
 # Mini-Jira
 
+> **Status:** 🟡 In Active Development | Architecture & Specification Phase
+
 MiniJira is a lightweight agile task tracking and project management system where cross-functional teams manage projects, sprints, and tasks with role-based access control.
 
 ---
@@ -170,6 +172,38 @@ erDiagram
 
 ---
 
+## ⚖️ Core Business Rules
+
+1. **User & Identity Rules:**
+   - User emails must be unique and normalized to lowercase.
+   - Passwords must be securely hashed with BCrypt (`strength = 12`).
+   - Inactive users (`is_active = false`) cannot authenticate or be assigned tasks.
+   - An `ADMIN` cannot deactivate or revoke admin privileges from their own account.
+
+2. **Project & Membership Rules:**
+   - Each project requires a unique, uppercase identifier `project_key` (e.g., `JIRA`, `PROJ`).
+   - Any `USER` can create a project and automatically assumes the `PROJECT_MANAGER` role.
+   - **Single Role Constraint:** Each member has strictly one role per project.
+   - Only the `PROJECT_MANAGER` can invite members or modify member roles within their project.
+
+3. **Sprint & Backlog Rules:**
+   - Each project can have at most **one active sprint** at any given time.
+   - Sprint `end_date` must be strictly after `start_date`.
+   - Tasks created without a sprint remain in the Project Backlog (`sprint_id = null`).
+   - Only tasks attached to an active sprint can transition from `Backlog` to `To Do`.
+
+4. **Task & Workflow Rules:**
+   - Status transitions must follow the authorized workflow state machine.
+   - Only the assigned `DEVELOPER` can move a task to `In Progress` or submit to `In Testing`.
+   - Only a `TESTER` can transition a task to `Done` or reopen it (`In Testing` ➔ `In Progress`).
+   - Tasks cannot be hard deleted once work has commenced; they must be transitioned to `Done` or closed.
+
+5. **Audit Logging Rules:**
+   - All task status changes, point re-estimations, and reassignment actions must generate an immutable record in `activity_log`.
+   - Comments are append-only; users cannot edit or delete comments authored by other members.
+
+---
+
 ## 📋 Features
 
 ### 🔐 User & Access Management
@@ -237,7 +271,8 @@ To prevent scope creep and ensure on-time delivery, the following features are e
 docker compose up --build -d
 ```
 - API Base URL: `http://localhost:8080`
-- Swagger UI Documentation: `http://localhost:8080/swagger-ui.html`
+- Swagger UI Documentation: `http://localhost:8080/swagger-ui/index.html` (or `http://localhost:8080/swagger-ui.html`)
+- OpenAPI 3 Specification: `http://localhost:8080/v3/api-docs`
 
 ### Option B: Run Locally (Database in Docker, App in IDE/CLI)
 1. Start the PostgreSQL database:
@@ -252,3 +287,17 @@ docker compose up --build -d
    ```bash
    ./mvnw test
    ```
+
+---
+
+### 🔒 Docker, Environment & Secrets Management
+
+- **Environment File Configuration:** Copy `.env.example` to `.env` before starting containers. Never commit `.env` or production credentials to Git.
+  ```bash
+  cp .env.example .env
+  ```
+- **Secrets Management:** Sensitive keys (`JWT_SECRET`, database passwords) must be injected via environment variables and excluded from `application.yml` defaults.
+- **Data Persistence:** PostgreSQL data is persisted via a named Docker volume (`postgres_data`) so database state survives container restarts.
+- **Default Development Ports:**
+  - Spring Boot Backend: `8080`
+  - PostgreSQL Database: `5432`
